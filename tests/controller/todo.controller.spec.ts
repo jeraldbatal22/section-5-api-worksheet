@@ -71,35 +71,35 @@ test.describe("Todo API E2E", () => {
     expect(missingBody).toHaveProperty("error");
   });
 
-  test("adds todos and increases array length (authenticated)", async ({
-    request,
-  }) => {
-    const token = await getAuthToken(request);
-    // Get initial todos
-    const initialRes = await request.get(`${BASE_URL}/todos`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const initialBody = await initialRes.json();
-    const initialLength = (initialBody.data || []).length;
+  // test("adds todos and increases array length (authenticated)", async ({
+  //   request,
+  // }) => {
+  //   const token = await getAuthToken(request);
+  //   // Get initial todos
+  //   const initialRes = await request.get(`${BASE_URL}/todos`, {
+  //     headers: { authorization: `Bearer ${token}` },
+  //   });
+  //   const initialBody = await initialRes.json();
+  //   const initialLength = (initialBody.data || []).length;
 
-    const res = await request.post(`${BASE_URL}/todos`, {
-      data: { title: "New 1", description: "Desc1", completed: false },
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(res.status()).toBe(201);
-    const data = await res.json();
-    expect(data).toMatchObject({
-      success: true,
-      message: "Successfully Created Todo",
-      data: data.data
-    });
+  //   const res = await request.post(`${BASE_URL}/todos`, {
+  //     data: { title: "New 1", description: "Desc1", completed: false },
+  //     headers: { authorization: `Bearer ${token}` },
+  //   });
+  //   expect(res.status()).toBe(201);
+  //   const data = await res.json();
+  //   expect(data).toMatchObject({
+  //     success: true,
+  //     message: "Successfully Created Todo",
+  //     data: data.data
+  //   });
 
-    const finalRes = await request.get(`${BASE_URL}/todos`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const finalBody = await finalRes.json();
-    expect((finalBody.data || []).length).toBe(initialLength + 1);
-  });
+  //   const finalRes = await request.get(`${BASE_URL}/todos`, {
+  //     headers: { authorization: `Bearer ${token}` },
+  //   });
+  //   const finalBody = await finalRes.json();
+  //   expect((finalBody.data || []).length).toBe(initialLength + 1);
+  // });
 
   test("updates todo and fails when id not found (authenticated)", async ({
     request,

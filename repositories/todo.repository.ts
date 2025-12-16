@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import type { CreateTodoDTO, UpdateTodoDTO, Todo } from "../dto/todo.dto.ts";
+import type { CreateTodoDTO, UpdateTodoDTO } from "../dto/todo.dto.ts";
 import supabase from "../utils/supabase/server.ts";
+import type { ITodo } from "../model/todo.model.ts";
 
 export class TodoRepository {
   private supabase: SupabaseClient;
@@ -11,7 +12,7 @@ export class TodoRepository {
   }
 
   // Create a new todo
-  async create(userId: string, todoData: CreateTodoDTO): Promise<Todo> {
+  async create(userId: string, todoData: CreateTodoDTO): Promise<ITodo> {
     const { data, error } = await this.supabase
       .from(this.tableName)
       .insert({
@@ -23,22 +24,22 @@ export class TodoRepository {
       .select("*")
       .single();
     if (error) throw new Error(`Database error: ${error.message}`);
-    return data as Todo;
+    return data as ITodo;
   }
 
   // Find todo by ID
-  async findByTodoId(id: string): Promise<Todo | null> {
+  async findByTodoId(id: string): Promise<ITodo | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
       .select("*")
       .eq("id", id)
       .single();
     if (error || !data) return null;
-    return data as Todo;
+    return data as ITodo;
   }
 
   // Find todo by ID and user ID
-  async findByIdAndUserId(id: string, userId: string): Promise<Todo | null> {
+  async findByIdAndUserId(id: string, userId: string): Promise<ITodo | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
       .select("*")
@@ -46,7 +47,7 @@ export class TodoRepository {
       .eq("user_id", userId)
       .single();
     if (error || !data) return null;
-    return data as Todo;
+    return data as ITodo;
   }
 
   // Get all todos for a user
@@ -55,7 +56,7 @@ export class TodoRepository {
     limit: number = 10,
     offset: number = 0,
     completed?: boolean
-  ): Promise<Todo[]> {
+  ): Promise<ITodo[]> {
     let query = this.supabase
       .from(this.tableName)
       .select("*")
@@ -69,7 +70,7 @@ export class TodoRepository {
 
     const { data, error } = await query;
     if (error) throw new Error(`Database error: ${error.message}`);
-    return (data as Todo[]) ?? [];
+    return (data as ITodo[]) ?? [];
   }
 
   // Update todo
@@ -77,7 +78,7 @@ export class TodoRepository {
     id: string,
     userId: string,
     todoData: UpdateTodoDTO
-  ): Promise<Todo | null> {
+  ): Promise<ITodo | null> {
     if (
       todoData.title === undefined &&
       todoData.description === undefined &&
@@ -103,7 +104,7 @@ export class TodoRepository {
       .select("*")
       .single();
     if (error || !data) return null;
-    return data as Todo;
+    return data as ITodo;
   }
 
   // Delete todo
