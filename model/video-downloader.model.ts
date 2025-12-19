@@ -1,5 +1,3 @@
-// src/models/video-downloader.model.ts
-
 export interface IVideoDownload {
   id: number;
   user_id: number | string;

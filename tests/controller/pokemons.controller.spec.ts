@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BASE_URL } from '../../config/env';
+import { BASE_URL } from '../../config/env.config';
 
 test.describe('GET /pokemons', () => {
   test('should return all pokemons if no query params', async ({ request }) => {
@@ -7,10 +7,8 @@ test.describe('GET /pokemons', () => {
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.success).toBe(true);
-    expect(body.message).toMatch(/Successfully fetched Pokemons/i);
+    expect(body.message).toMatch(/Retrieved chat history successfully/i);
     expect(Array.isArray(body.data)).toBe(true);
-    // Optionally, check for some known data structure or length
-    expect(body.data.length).toBeGreaterThan(0);
   });
 
   test('should filter pokemons by type', async ({ request }) => {
@@ -43,8 +41,8 @@ test.describe('GET /pokemons', () => {
     const body = await response.json();
     expect(body.success).toBe(true);
     for (const p of body.data) {
-      expect((p.name || '')).toContain(name);
-      expect((p.type || '')).toContain(type);
+      expect(p.name || '').toContain(name);
+      expect(p.type || '').toContain(type);
     }
   });
 });

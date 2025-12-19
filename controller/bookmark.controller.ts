@@ -1,87 +1,62 @@
-import type { Response } from "express";
-import BookmarkService from "../services/bookmark.service.ts";
-import type { IAuthRequest } from "../types/index.ts";
+import type { Response } from 'express';
+import BookmarkService from '../services/bookmark.service.ts';
+import type { IAuthRequest } from '../types/index.ts';
+import { ResponseHandler } from '../utils/response-handler.ts';
+import HttpStatus from 'http-status';
 
 class BookmarkController {
   async create(req: IAuthRequest, res: Response): Promise<void> {
     const { url, title } = req.body;
-    const bookmark = await BookmarkService.createBookmark(
-      req.user?.id as number,
-      { url, title }
-    );
+    const bookmark = await BookmarkService.createBookmark(req.user?.id as number, { url, title });
 
-    res.status(201).json({
-      success: true,
-      data: bookmark,
-      message: "Successfully created bookmark",
-    });
+    ResponseHandler.success(res, bookmark, 'Successfully created bookmark', 201);
   }
 
   async getAll(req: IAuthRequest, res: Response): Promise<void> {
-    const limit = req.query.limit
-      ? parseInt(req.query.limit as string, 10)
-      : 50;
-    const offset = req.query.offset
-      ? parseInt(req.query.offset as string, 10)
-      : 0;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const page = parseInt(req.query.page as string);
 
     const result = await BookmarkService.getBookmarks(req.user?.id as number, {
       limit,
       offset,
+      page,
     });
 
-    res.status(200).json({
-      success: true,
-      data: result.bookmarks,
-      pagination: result.pagination,
-      message: "Successfully fetched bookmarks",
-    });
+    ResponseHandler.success(
+      res,
+      result.data,
+      'Successfully fetched bookmarks',
+      HttpStatus.OK,
+      result.pagination
+    );
   }
 
   async getById(req: IAuthRequest, res: Response): Promise<void> {
     const id = req.params.id;
 
-    const bookmark = await BookmarkService.getBookmarkById(
-      req.user?.id as number,
-      id
-    );
+    const bookmark = await BookmarkService.getBookmarkById(req.user?.id as number, id);
 
-    res.status(200).json({
-      success: true,
-      data: bookmark,
-      message: "Successfully fetched bookmark",
-    });
+    ResponseHandler.success(res, bookmark, 'Successfully fetched bookmark');
   }
 
   async update(req: IAuthRequest, res: Response): Promise<void> {
     const id = req.params.id;
     const { url, title } = req.body;
 
-    const bookmark = await BookmarkService.updateBookmark(
-      req.user?.id as number,
-      id,
-      {
-        url,
-        title,
-      }
-    );
-
-    res.status(200).json({
-      success: true,
-      data: bookmark,
-      message: "Successfully updated bookmark",
+    const bookmark = await BookmarkService.updateBookmark(req.user?.id as number, id, {
+      url,
+      title,
     });
+
+    ResponseHandler.success(res, bookmark, 'Successfully updated bookmark');
   }
 
   async delete(req: IAuthRequest, res: Response): Promise<void> {
     const id = req.params.id;
     await BookmarkService.deleteBookmark(req.user?.id as number, id);
 
-    res.status(200).json({
-      success: true,
-      data: null,
-      message: "Successfully Deleted Bookmark",
-    });
+    ResponseHandler.success(res, null, 'Successfully Deleted Bookmark');
   }
 }
 

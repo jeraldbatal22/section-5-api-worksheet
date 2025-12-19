@@ -1,25 +1,19 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import type { Calculator } from "../model/calculator.model.ts";
-import supabase from "../utils/supabase/server.ts";
-
-interface CreateCalculationDTO {
-  user_id?: number;
-  num1: number;
-  num2: number;
-}
+import { SupabaseClient } from '@supabase/supabase-js';
+import type { Calculator } from '../model/calculator.model.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
+import type { CreateCalculationInput } from '../schemas/calculator.schema.ts';
 
 class CalculatorRepository {
   private supabase: SupabaseClient;
-  private tableName = "calculator";
+  private tableName = 'calculator';
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
-  // Add
-  async add(data: CreateCalculationDTO): Promise<Calculator> {
+  async add(data: CreateCalculationInput): Promise<Calculator> {
     const { user_id, num1, num2 } = data;
-    const operator = "+";
+    const operator = '+';
     const resultValue = num1 + num2;
     const { data: rows, error } = await this.supabase
       .from(this.tableName)
@@ -32,19 +26,19 @@ class CalculatorRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .select("*")
+      .select('*')
       .single();
 
     if (error || !rows) {
-      throw new Error(`Database error: ${error?.message ?? "Unknown error"}`);
+      throw new Error(`Database error: ${error?.message ?? 'Unknown error'}`);
     }
     return rows as Calculator;
   }
 
   // Subtract
-  async subtract(data: CreateCalculationDTO): Promise<Calculator> {
+  async subtract(data: CreateCalculationInput): Promise<Calculator> {
     const { user_id, num1, num2 } = data;
-    const operator = "-";
+    const operator = '-';
     const resultValue = num1 - num2;
     const { data: rows, error } = await this.supabase
       .from(this.tableName)
@@ -57,18 +51,18 @@ class CalculatorRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .select("*")
+      .select('*')
       .single();
     if (error || !rows) {
-      throw new Error(`Database error: ${error?.message ?? "Unknown error"}`);
+      throw new Error(`Database error: ${error?.message ?? 'Unknown error'}`);
     }
     return rows as Calculator;
   }
 
   // Multiply
-  async multiply(data: CreateCalculationDTO): Promise<Calculator> {
+  async multiply(data: CreateCalculationInput): Promise<Calculator> {
     const { user_id, num1, num2 } = data;
-    const operator = "*";
+    const operator = '*';
     const resultValue = num1 * num2;
     const { data: rows, error } = await this.supabase
       .from(this.tableName)
@@ -81,20 +75,20 @@ class CalculatorRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .select("*")
+      .select('*')
       .single();
     if (error || !rows) {
-      throw new Error(`Database error: ${error?.message ?? "Unknown error"}`);
+      throw new Error(`Database error: ${error?.message ?? 'Unknown error'}`);
     }
     return rows as Calculator;
   }
 
   // Divide
-  async divide(data: CreateCalculationDTO): Promise<Calculator> {
+  async divide(data: CreateCalculationInput): Promise<Calculator> {
     const { user_id, num1, num2 } = data;
-    const operator = "/";
+    const operator = '/';
     if (num2 === 0) {
-      throw new Error("Cannot divide by zero");
+      throw new Error('Cannot divide by zero');
     }
     const resultValue = num1 / num2;
     const { data: rows, error } = await this.supabase
@@ -108,10 +102,10 @@ class CalculatorRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .select("*")
+      .select('*')
       .single();
     if (error || !rows) {
-      throw new Error(`Database error: ${error?.message ?? "Unknown error"}`);
+      throw new Error(`Database error: ${error?.message ?? 'Unknown error'}`);
     }
     return rows as Calculator;
   }
@@ -120,8 +114,8 @@ class CalculatorRepository {
   async findById(id: number): Promise<Calculator | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("id", id)
+      .select('*')
+      .eq('id', id)
       .single();
     if (error || !data) {
       return null;
@@ -135,15 +129,13 @@ class CalculatorRepository {
     limit: number = 10,
     offset: number = 0
   ): Promise<Calculator[]> {
-    let query = this.supabase.from(this.tableName).select("*");
+    let query = this.supabase.from(this.tableName).select('*');
 
-    if (typeof userId === "number") {
-      query = query.eq("user_id", userId);
+    if (typeof userId === 'number') {
+      query = query.eq('user_id', userId);
     }
 
-    query = query
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
 
     // Type narrow for return type inference
     const { data, error } = await query;

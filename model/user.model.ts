@@ -2,7 +2,7 @@ export interface IUser {
   id: string;
   username: string;
   avatar_url?: string | null;
-  role: "user" | "admin";
+  role: 'user' | 'admin';
   created_at?: string;
   updated_at?: string;
 }
@@ -11,7 +11,7 @@ export class UserModel implements IUser {
   id!: string;
   username!: string;
   avatar_url?: string | null;
-  role!: "user" | "admin";
+  role!: 'user' | 'admin';
   created_at?: string;
   updated_at?: string;
 

@@ -1,15 +1,14 @@
-import { app } from './app.ts';
-import { PORT } from './config/env.ts';
+import { server } from './app.ts';
+import { PORT } from './config/env.config.ts';
 
-const server = app.listen(PORT || 3000, () => {
+const testServer = server.app.listen(PORT || 3000, () => {
   console.log(`Test server running at http://localhost:${PORT || 3000}`);
 });
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
-  server.close(() => {
+  testServer.close(() => {
     console.log('Test server closed');
     process.exit(0);
   });
 });
-

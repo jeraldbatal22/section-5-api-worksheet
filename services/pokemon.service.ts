@@ -1,7 +1,8 @@
 import type { Pokemon, CreatePokemonDTO } from '../model/pokemon.model.ts';
 import pokemonRepository from '../repositories/pokemon.repository.ts';
-import { ErrorResponse } from "../utils/error-response.ts";
-import HttpStatus from "http-status";
+import { AppError } from '../middleware/error-handler.middleware.ts';
+import HttpStatus from 'http-status';
+import { PaginationHelper } from '../utils/pagination.utils.ts';
 
 export interface PokemonListOptions {
   type?: string;
@@ -23,71 +24,57 @@ export interface PaginatedPokemons {
 
 class PokemonService {
   // Get all pokemons (with type/name search & pagination)
-  async getAllPokemons(options: PokemonListOptions = {}): Promise<PaginatedPokemons> {
-    const {
-      type,
-      name,
-      limit = 10,
-      offset = 0
-    } = options;
+  async getAllPokemons(options: PokemonListOptions = {}): Promise<any> {
+    const { type, name } = options;
+    const { limit, offset } = PaginationHelper.normalize(options);
 
     // Basic validation for pagination
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const safeOffset = Math.max(offset, 0);
-
     const pokemons = await pokemonRepository.getAllPokemons({
       type,
       name,
       limit: safeLimit,
       offset: safeOffset,
     });
-
-    // For pagination info, we need a count
-    // We'll simply count with the same filters - this is best as a separate method in a real app,
     // but for now, simulate as count= pokemons.length if not real "total"
     const count = pokemons.length;
-    const hasMore = count === safeLimit; // crude - could refine with real total
+    return PaginationHelper.paginate(pokemons, count, { limit, offset });
 
-    return {
-      data: pokemons,
-      pagination: {
-        limit: safeLimit,
-        offset: safeOffset,
-        count,
-        hasMore,
-      },
-    };
+    // // For pagination info, we need a count
+    // // We'll simply count with the same filters - this is best as a separate method in a real app,
+    // // but for now, simulate as count= pokemons.length if not real "total"
+    // const count = pokemons.length;
+    // const hasMore = count === safeLimit; // crude - could refine with real total
+
+    // return {
+    //   data: pokemons,
+    //   pagination: {
+    //     limit: safeLimit,
+    //     offset: safeOffset,
+    //     count,
+    //     hasMore,
+    //   },
+    // };
   }
 
   // Create a new Pokemon
   async createPokemon(data: CreatePokemonDTO): Promise<Pokemon> {
-    if (
-      !data.name ||
-      typeof data.name !== 'string' ||
-      data.name.trim().length === 0
-    ) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+    if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
+      throw new AppError(HttpStatus.BAD_REQUEST, 'Name must be a non-empty string');
     }
-    if (
-      !data.type ||
-      typeof data.type !== 'string' ||
-      data.type.trim().length === 0
-    ) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+    if (!data.type || typeof data.type !== 'string' || data.type.trim().length === 0) {
+      throw new AppError(HttpStatus.BAD_REQUEST, 'Type must be a non-empty string');
     }
-    if (
-      typeof data.level !== 'number' ||
-      isNaN(data.level) ||
-      data.level < 1
-    ) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+    if (typeof data.level !== 'number' || isNaN(data.level) || data.level < 1) {
+      throw new AppError(HttpStatus.BAD_REQUEST, 'Level must be a number greater than 0');
     }
     if (
       !Array.isArray(data.abilities) ||
       data.abilities.length === 0 ||
       !data.abilities.every(a => typeof a === 'string' && a.length > 0)
     ) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+      throw new AppError(HttpStatus.BAD_REQUEST, 'Abilities must be a non-empty array of strings');
     }
 
     // Trim fields

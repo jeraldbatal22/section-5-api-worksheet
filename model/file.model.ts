@@ -8,7 +8,7 @@ export const FileEntityType = {
   INSTAGRAM_POST: 'instagram',
   OTHER: 'other',
 } as const;
-export type FileEntityType = typeof FileEntityType[keyof typeof FileEntityType];
+export type FileEntityType = (typeof FileEntityType)[keyof typeof FileEntityType];
 
 export interface IFile {
   id?: string;

@@ -7,11 +7,6 @@ export interface UrlShortener {
   updated_at?: string;
 }
 
-export interface CreateShortenUrlDTO {
-  url: string;
-  shorten_url: string;
-}
-
 export class UrlShortenerModel implements UrlShortener {
   id?: number;
   user_id!: number | string;

@@ -3,7 +3,7 @@ import path from 'path';
 import axios from 'axios';
 import type { CreateVideoDownloadDto, UpdateVideoDownloadDto } from '../model/video-downloader.model.ts';
 import videoDownloadRepo from '../repositories/video-download.repository.ts';
-import { ErrorResponse } from '../utils/error-response.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
 import HttpStatus from 'http-status';
 
 interface VideoQueryOptions {
@@ -49,7 +49,7 @@ class VideoDownloaderService {
     dto: CreateVideoDownloadDto
   ): Promise<any> {
     if (!this.isValidUrl(dto.url)) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+      throw new AppError(HttpStatus.BAD_REQUEST, "Invalid URL format");
     }
     const data = await videoDownloadRepo.create(dto);
 
@@ -120,8 +120,8 @@ class VideoDownloaderService {
   ): Promise<any[]> {
     const limit = options.limit ?? 10;
     const offset = options.offset ?? 0;
-    if (limit < 1 || limit > 100) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
-    if (offset < 0) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+    if (limit < 1 || limit > 100) throw new AppError(HttpStatus.BAD_REQUEST, "Invalid limit (must be between 1 and 100)");
+    if (offset < 0) throw new AppError(HttpStatus.BAD_REQUEST, "Invalid offset (must be 0 or greater)");
 
     return await videoDownloadRepo.findByUserId(userId, limit, offset);
   }

@@ -1,6 +1,6 @@
 import type { Calculator } from '../model/calculator.model.ts';
 import calculatorRepository from '../repositories/calculator.repository.ts';
-import { ErrorResponse } from '../utils/error-response.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
 import HttpStatus from 'http-status';
 
 interface CalculationOptions {
@@ -11,52 +11,36 @@ interface CalculationOptions {
 
 class CalculatorService {
   // Addition
-  async add(
-    num1: number,
-    num2: number,
-    userId?: number
-  ): Promise<Calculator> {
-    if (typeof num1 !== "number" || typeof num2 !== "number") {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "num1 and num2 must be numbers");
+  async add(num1: number, num2: number, userId?: number): Promise<Calculator> {
+    if (typeof num1 !== 'number' || typeof num2 !== 'number') {
+      throw new AppError(HttpStatus.BAD_REQUEST, 'num1 and num2 must be numbers');
     }
     return await calculatorRepository.add({ user_id: userId, num1, num2 });
   }
 
   // Subtraction
-  async subtract(
-    num1: number,
-    num2: number,
-    userId?: number
-  ): Promise<Calculator> {
-    if (typeof num1 !== "number" || typeof num2 !== "number") {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "num1 and num2 must be numbers");
+  async subtract(num1: number, num2: number, userId?: number): Promise<Calculator> {
+    if (typeof num1 !== 'number' || typeof num2 !== 'number') {
+      throw new AppError(HttpStatus.BAD_REQUEST, 'num1 and num2 must be numbers');
     }
     return await calculatorRepository.subtract({ user_id: userId, num1, num2 });
   }
 
   // Multiplication
-  async multiply(
-    num1: number,
-    num2: number,
-    userId?: number
-  ): Promise<Calculator> {
-    if (typeof num1 !== "number" || typeof num2 !== "number") {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "num1 and num2 must be numbers");
+  async multiply(num1: number, num2: number, userId?: number): Promise<Calculator> {
+    if (typeof num1 !== 'number' || typeof num2 !== 'number') {
+      throw new AppError(HttpStatus.BAD_REQUEST, 'num1 and num2 must be numbers');
     }
     return await calculatorRepository.multiply({ user_id: userId, num1, num2 });
   }
 
   // Division
-  async divide(
-    num1: number,
-    num2: number,
-    userId?: number
-  ): Promise<Calculator> {
-    if (typeof num1 !== "number" || typeof num2 !== "number") {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "num1 and num2 must be numbers");
+  async divide(num1: number, num2: number, userId?: number): Promise<Calculator> {
+    if (typeof num1 !== 'number' || typeof num2 !== 'number') {
+      throw new AppError(HttpStatus.BAD_REQUEST, 'num1 and num2 must be numbers');
     }
     if (num2 === 0) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "num1 and num2 must be numbers");
+      throw new AppError(HttpStatus.BAD_REQUEST, 'Division by zero is not allowed');
     }
     return await calculatorRepository.divide({ user_id: userId, num1, num2 });
   }
@@ -70,13 +54,11 @@ class CalculatorService {
   async getCalculations(options: CalculationOptions = {}): Promise<Calculator[]> {
     const limit = options.limit ?? 10;
     const offset = options.offset ?? 0;
-    if (limit < 1 || limit > 100) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "num1 and num2 must be numbers");
-    if (offset < 0) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "num1 and num2 must be numbers");
-    return await calculatorRepository.findAllByUserId(
-      options.userId,
-      limit,
-      offset
-    );
+    if (limit < 1 || limit > 100)
+      throw new AppError(HttpStatus.BAD_REQUEST, 'Invalid limit (must be between 1 and 100)');
+    if (offset < 0)
+      throw new AppError(HttpStatus.BAD_REQUEST, 'Invalid offset (must be 0 or greater)');
+    return await calculatorRepository.findAllByUserId(options.userId, limit, offset);
   }
 }
 

@@ -1,18 +1,20 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import type { CreateTodoDTO, UpdateTodoDTO } from "../dto/todo.dto.ts";
-import supabase from "../utils/supabase/server.ts";
-import type { ITodo } from "../model/todo.model.ts";
+import { SupabaseClient } from '@supabase/supabase-js';
+import type { ITodo } from '../model/todo.model.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
+import HttpStatus from 'http-status';
+import type { CreateTodoInput, UpdateTodoInput } from '../schemas/todo.schema.ts';
 
 export class TodoRepository {
   private supabase: SupabaseClient;
-  private tableName = "todos";
+  private tableName = 'todos';
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
   // Create a new todo
-  async create(userId: string, todoData: CreateTodoDTO): Promise<ITodo> {
+  async create(userId: string, todoData: CreateTodoInput): Promise<ITodo> {
     const { data, error } = await this.supabase
       .from(this.tableName)
       .insert({
@@ -21,9 +23,10 @@ export class TodoRepository {
         description: todoData.description ?? null,
         is_completed: false,
       })
-      .select("*")
+      .select('*')
       .single();
-    if (error) throw new Error(`Database error: ${error.message}`);
+    if (error)
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
     return data as ITodo;
   }
 
@@ -31,10 +34,11 @@ export class TodoRepository {
   async findByTodoId(id: string): Promise<ITodo | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("id", id)
+      .select('*')
+      .eq('id', id)
       .single();
-    if (error || !data) return null;
+    if (error)
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
     return data as ITodo;
   }
 
@@ -42,12 +46,21 @@ export class TodoRepository {
   async findByIdAndUserId(id: string, userId: string): Promise<ITodo | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("id", id)
-      .eq("user_id", userId)
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
       .single();
     if (error || !data) return null;
     return data as ITodo;
+  }
+
+  // Get Total Count
+  async getTotalCountTodos(userId: string | number) {
+    const { count } = await this.supabase
+      .from(this.tableName)
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    return count ?? 0;
   }
 
   // Get all todos for a user
@@ -59,51 +72,49 @@ export class TodoRepository {
   ): Promise<ITodo[]> {
     let query = this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (completed !== undefined) {
-      query = query.eq("is_completed", completed);
+      query = query.eq('is_completed', completed);
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Database error: ${error.message}`);
+    console.log(error, '13213213123');
+
+    if (error)
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
     return (data as ITodo[]) ?? [];
   }
 
   // Update todo
-  async update(
-    id: string,
-    userId: string,
-    todoData: UpdateTodoDTO
-  ): Promise<ITodo | null> {
+  async update(id: string, userId: string, todoData: UpdateTodoInput): Promise<ITodo | null> {
     if (
       todoData.title === undefined &&
       todoData.description === undefined &&
       todoData.is_completed === undefined
     ) {
-      throw new Error("No fields to update");
+      throw new Error('No fields to update');
     }
 
     const updateObj: Record<string, any> = {};
     if (todoData.title !== undefined) updateObj.title = todoData.title;
-    if (todoData.description !== undefined)
-      updateObj.description = todoData.description;
-    if (todoData.is_completed !== undefined)
-      updateObj.is_completed = todoData.is_completed;
+    if (todoData.description !== undefined) updateObj.description = todoData.description;
+    if (todoData.is_completed !== undefined) updateObj.is_completed = todoData.is_completed;
 
     updateObj.updated_at = new Date().toISOString();
 
     const { data, error } = await this.supabase
       .from(this.tableName)
       .update(updateObj)
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select("*")
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('*')
       .single();
-    if (error || !data) return null;
+    if (error)
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
     return data as ITodo;
   }
 
@@ -112,11 +123,12 @@ export class TodoRepository {
     const { error, data } = await this.supabase
       .from(this.tableName)
       .delete()
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select("id")
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('id')
       .maybeSingle();
-    if (error) return false;
+    if (error)
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
     return !!data;
   }
 
@@ -124,15 +136,16 @@ export class TodoRepository {
   async countByUserId(userId: string, completed?: boolean): Promise<number> {
     let query = this.supabase
       .from(this.tableName)
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId);
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
 
     if (completed !== undefined) {
-      query = query.eq("is_completed", completed);
+      query = query.eq('is_completed', completed);
     }
 
     const { count, error } = await query;
-    if (error) throw new Error(`Database error: ${error.message}`);
+    if (error)
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
     return count || 0;
   }
 }

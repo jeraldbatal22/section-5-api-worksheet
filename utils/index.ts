@@ -6,7 +6,7 @@ import {
   JWT_EXPIRES_IN,
   JWT_REFRESH_EXPIRES_IN,
   JWT_SECRET,
-} from "../config/env.ts";
+} from "../config/env.config.ts";
 import path from "path";
 import fs from "fs/promises";
 import jwt from "jsonwebtoken";

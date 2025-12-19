@@ -1,5 +1,5 @@
 import { Client } from "pg";
-import { PG_DATABASE, PG_HOST, PG_PASSWORD, PG_PORT, PG_USER } from "../config/env.ts";
+import { PG_DATABASE, PG_HOST, PG_PASSWORD, PG_PORT, PG_USER } from "../config/env.config.ts";
 
 export const pgDatabase = new Client({
   host: PG_HOST,

@@ -1,31 +1,4 @@
-// Enum for supported media types
-export type MediaType = "image" | "video" | null;
-
-export interface IInstagramPost {
-  id: string;
-  user_id: string;
-  caption?: string | null;
-  url: string;
-  media_type: MediaType;
-  created_at?: string;
-  updated_at?: string;
-}
-
-// DTO for creating an Instagram post
-export interface CreateInstagramPostDTO {
-  user_id: string;
-  caption?: string | null;
-  file?: any;
-  uploadTo?: "aws-s3" | "supabase-storage";
-  // media_type: MediaType;
-}
-
-// DTO for updating an Instagram post
-export interface UpdateInstagramPostDTO {
-  caption?: string | null;
-  url?: string;
-  media_type?: MediaType;
-}
+import type { IInstagramPost, MediaType } from '../schemas/instagram.schema.ts';
 
 export class InstagramPostModel implements IInstagramPost {
   id!: string;

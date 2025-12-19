@@ -1,9 +1,15 @@
-import { FileEntityType } from "../model/file.model.ts";
-import { v4 as uuidv4 } from "uuid";
-import uploadService from "./upload.service.ts";
-import chatRepository from "../repositories/chat.repository.ts";
-import { ErrorResponse } from "../utils/error-response.ts";
-import HttpStatus from "http-status";
+import { FileEntityType } from '../model/file.model.ts';
+import { v4 as uuidv4 } from 'uuid';
+import uploadService from './upload.service.ts';
+import chatRepository from '../repositories/chat.repository.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
+import HttpStatus from 'http-status';
+import { PaginationHelper } from '../utils/pagination.utils.ts';
+
+export interface ChatListOptions {
+  receiver_id: string;
+  pagination: { limit?: number; offset?: number; page?: number };
+}
 
 class ChatService {
   private chatRepo: typeof chatRepository;
@@ -15,65 +21,63 @@ class ChatService {
   }
 
   async sendMessage(
-    senderId: string,
-    receiverId: string,
+    sender_id: string,
+    receiver_id: string,
     content: string,
     file?: Express.Multer.File,
-    uploadTo?: "aws-s3" | "supabase-storage"
+    upload_to?: 'aws-s3' | 'supabase-storage'
   ) {
-    let fileUrl: string | undefined
-    // Upload file if provided
+    let fileUrl: string | undefined;
     const chatId = uuidv4();
 
     if (file) {
-      if (uploadTo === "aws-s3") {
+      if (upload_to === 'aws-s3') {
         const uploadResult = await this.uploadService.uploadFileToAwsS3(file, {
           entityType: FileEntityType.CHAT,
           entityId: chatId,
-          userId: senderId,
+          userId: sender_id,
         });
         fileUrl = uploadResult.url;
       }
-      if (uploadTo === "supabase-storage") {
+      if (upload_to === 'supabase-storage') {
         const uploadResult = await this.uploadService.uploadFileToSupabase(file, {
           entityType: FileEntityType.CHAT,
           entityId: chatId,
-          userId: senderId,
+          userId: sender_id,
         });
-        console.log(uploadResult, "uploadResult")
         fileUrl = uploadResult.url;
       }
     }
 
-    // Create chat message
     const chat = await this.chatRepo.create({
       content,
-      sender_id: senderId,
-      receiver_id: receiverId,
+      sender_id: sender_id,
+      receiver_id: receiver_id,
       file_url: fileUrl,
     });
 
     return chat;
   }
 
-  async getSingleMessageById(messageId: string, userId: string) {
-    const message = await this.chatRepo.findSingleMessageByUserId(messageId, userId);
-    if (!message) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+  async getSingleMessageById(message_id: string, user_id: string) {
+    const message = await this.chatRepo.findSingleMessageByUserId(message_id, user_id);
+    if (!message) throw new AppError(HttpStatus.BAD_REQUEST, 'Message not found');
 
     return message;
   }
 
-  async getChatHistory(userId1: string, userId2: string) {
-    return await this.chatRepo.findBetweenUsers(userId1, userId2);
+  async getChatHistory(userId: string, options: ChatListOptions) {
+    const { limit, offset } = PaginationHelper.normalize(options.pagination);
+    const count = await this.chatRepo.getTotalCountChats(userId, options.receiver_id);
+    const chats = await this.chatRepo.findBetweenUsers(userId, options.receiver_id, {
+      limit,
+      offset,
+    });
+    return PaginationHelper.paginate(chats, count, options.pagination);
   }
 
-  async deleteMessage(messageId: string, userId: string) {
-    const chat = await this.chatRepo.deleteMessage(messageId, userId);
-
-    if (!chat) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
-    }
-
+  async deleteMessage(message_id: string, user_id: string) {
+    await this.chatRepo.deleteMessage(message_id, user_id);
   }
 }
 

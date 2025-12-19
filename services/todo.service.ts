@@ -1,8 +1,10 @@
-import todoRepository from "../repositories/todo.repository.ts";
-import type { CreateTodoDTO, UpdateTodoDTO } from "../dto/todo.dto.ts";
-import { ErrorResponse } from "../utils/error-response.ts";
-import HttpStatus from "http-status";
-
+import todoRepository from '../repositories/todo.repository.ts';
+import { PaginationHelper } from '../utils/pagination.utils.ts';
+import type { CreateTodoInput, UpdateTodoInput } from '../schemas/todo.schema.ts';
+interface TodoListOptions {
+  is_completed: boolean;
+  pagination: { limit?: number; offset?: number; page?: number };
+}
 class TodoService {
   private todoRepo: typeof todoRepository;
 
@@ -10,40 +12,35 @@ class TodoService {
     this.todoRepo = todoRepository;
   }
 
-  async createTodo(userId: string, todoData: CreateTodoDTO) {
+  async createTodo(userId: string, todoData: CreateTodoInput) {
     return await this.todoRepo.create(userId, todoData);
   }
 
   async getTodoById(id: string) {
     const todo = await this.todoRepo.findByTodoId(id);
-    if (!todo) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Todo not found");
     return todo;
   }
 
   async getTodoByIdAndUser(id: string, userId: string) {
     const todo = await this.todoRepo.findByIdAndUserId(id, userId);
-    if (!todo) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Todo not found");
     return todo;
   }
 
-  async getTodosByUser(
-    userId: string,
-    limit: number = 10,
-    offset: number = 0,
-    completed?: boolean
-  ) {
-    return await this.todoRepo.findAllByUserId(userId, limit, offset, completed);
+  async getTodosByUser(userId: string, options: TodoListOptions) {
+    const { limit, offset } = PaginationHelper.normalize(options.pagination);
+    const totalCount = await this.todoRepo.getTotalCountTodos(userId);
+
+    const todos = await this.todoRepo.findAllByUserId(userId, limit, offset, options.is_completed);
+    return PaginationHelper.paginate(todos, totalCount, { limit, offset });
   }
 
-  async updateTodo(id: string, userId: string, todoData: UpdateTodoDTO) {
+  async updateTodo(id: string, userId: string, todoData: UpdateTodoInput) {
     const updated = await this.todoRepo.update(id, userId, todoData);
-    if (!updated) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Todo not found or not updated");
     return updated;
   }
 
   async deleteTodo(id: string, userId: string) {
-    const result = await this.todoRepo.delete(id, userId);
-    if (!result) throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Todo not found or not deleted");
+    await this.todoRepo.delete(id, userId);
     return true;
   }
 

@@ -2,10 +2,10 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
-import { AWS, SUPABASE } from '../config/env.ts';
+import { AWS, SUPABASE } from '../config/env.config.ts';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // import { FileEntityType } from '../models';
-import { ErrorResponse } from '../utils/error-response.ts'; // Make sure this path is correct!
+import { AppError } from '../middleware/error-handler.middleware.ts';
 import HttpStatus from "http-status";
 
 export interface UploadOptions {
@@ -50,9 +50,9 @@ class UploadService {
   async uploadFileToAwsS3(file: any, options: UploadOptions): Promise<UploadResult> {
     const { entityType, entityId, userId, folder, expiresIn = 7 * 24 * 60 * 60 } = options;
 
-    // Add error throwing with ErrorResponse as per instruction
+    // Add error throwing with AppError as per instruction
     if (typeof file.originalname !== "string") {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+      throw new AppError(HttpStatus.BAD_REQUEST, "Invalid file: originalname must be a string");
     }
 
     const fileExtension = file.originalname.split('.').pop();
@@ -96,9 +96,9 @@ class UploadService {
   async uploadFileToSupabase(file: any, options: UploadOptions): Promise<UploadResult> {
     const { entityType, entityId, userId, folder } = options;
 
-    // Add error throwing with ErrorResponse as per instruction
+    // Add error throwing with AppError as per instruction
     if (typeof file.originalname !== "string") {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+      throw new AppError(HttpStatus.BAD_REQUEST, "Invalid file: originalname must be a string");
     }
 
     // Compose file name and bucket path
@@ -118,7 +118,7 @@ class UploadService {
       });
 
     if (error) {
-      throw new ErrorResponse(HttpStatus.BAD_REQUEST, "Title must be a string.");
+      throw new AppError(HttpStatus.BAD_REQUEST, `Failed to upload file to Supabase: ${error.message}`);
     }
 
     // Get public URL

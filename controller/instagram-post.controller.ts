@@ -1,8 +1,9 @@
-import type { Response, NextFunction } from "express";
-import InstagramPostService from "../services/instagram-post.service.ts";
-import type { IAuthRequest } from "../types/index.ts";
-import { ErrorResponse } from "../utils/error-response.ts";
-import HttpStatus from "http-status";
+import type { Response, NextFunction } from 'express';
+import InstagramPostService from '../services/instagram-post.service.ts';
+import type { IAuthRequest } from '../types/index.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
+import { ResponseHandler } from '../utils/response-handler.ts';
+import HttpStatus from 'http-status';
 
 class InstagramPostController {
   async createPost(req: IAuthRequest, res: Response, next: NextFunction) {
@@ -18,11 +19,7 @@ class InstagramPostController {
       uploadTo,
     });
 
-    res.status(201).json({
-      success: true,
-      data: created || null,
-      message: "Successfully Created Post",
-    });
+    ResponseHandler.success(res, created || null, 'Successfully Created Post', 201);
   }
 
   async updatePost(req: IAuthRequest, res: Response, next: NextFunction) {
@@ -36,64 +33,35 @@ class InstagramPostController {
     );
 
     if (!existingPost) {
-      throw new ErrorResponse(
-        HttpStatus.NOT_FOUND,
-        "Post not found or not owned by user"
-      );
+      throw new AppError(HttpStatus.NOT_FOUND, 'Post not found or not owned by user');
     }
 
-    const updated = await InstagramPostService.updatePost(
-      postId,
-      String(req.user?.id),
-      {
-        caption,
-        file: req.file,
-      }
-    );
-
-    res.status(200).json({
-      success: true,
-      data: updated || null,
-      message: "Successfully Updated Post",
+    const updated = await InstagramPostService.updatePost(postId, String(req.user?.id), {
+      caption,
+      file: req.file,
     });
+
+    ResponseHandler.success(res, updated || null, 'Successfully Updated Post');
   }
 
-  async getAllPostsByUserId(
-    req: IAuthRequest,
-    res: Response,
-    next: NextFunction
-  ) {
+  async getAllPostsByUserId(req: IAuthRequest, res: Response, next: NextFunction) {
     if (!req.user) {
-      throw new ErrorResponse(HttpStatus.UNAUTHORIZED, "Unauthorized");
+      throw new AppError(HttpStatus.UNAUTHORIZED, 'Unauthorized');
     }
     const posts = await InstagramPostService.getAllPostsByUserId(req.user.id);
-    res.status(200).json({
-      success: true,
-      data: posts || null,
-      message: "Successfully Retrieved Posts",
-    });
+    ResponseHandler.success(res, posts || null, 'Successfully Retrieved Posts');
   }
 
   async deletePostById(req: IAuthRequest, res: Response, next: NextFunction) {
     const postId = req.params.id;
 
-    const post = await InstagramPostService.getPostByIdAndUserId(
-      postId,
-      req?.user?.id as string
-    );
+    const post = await InstagramPostService.getPostByIdAndUserId(postId, req?.user?.id as string);
     if (!post) {
-      throw new ErrorResponse(
-        HttpStatus.NOT_FOUND,
-        "Post not found or not owned by user"
-      );
+      throw new AppError(HttpStatus.NOT_FOUND, 'Post not found or not owned by user');
     }
 
     await InstagramPostService.deletePostById(postId, req?.user?.id as string);
-    res.status(200).json({
-      success: true,
-      data: null,
-      message: "Successfully Deleted Post",
-    });
+    ResponseHandler.success(res, null, 'Successfully Deleted Post');
   }
 }
 

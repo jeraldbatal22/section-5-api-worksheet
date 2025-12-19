@@ -1,24 +1,18 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  Bookmark,
-  CreateBookmarkDTO,
-  UpdateBookmarkDTO,
-} from "../model/bookmark.model.ts";
-import supabase from "../utils/supabase/server.ts";
+import { SupabaseClient } from '@supabase/supabase-js';
+import type { Bookmark } from '../model/bookmark.model.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
+import type { CreateBookmarkInput, UpdateBookmarkInput } from '../schemas/bookmark.schema.ts';
 
 class BookmarkRepository {
   private supabase: SupabaseClient;
-  private tableName = "bookmarks";
+  private tableName = 'bookmarks';
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
   // Create a new bookmark
-  async createBookmark(
-    userId: number,
-    data: CreateBookmarkDTO
-  ): Promise<Bookmark> {
+  async createBookmark(userId: number, data: CreateBookmarkInput): Promise<Bookmark> {
     const { data: rows, error } = await this.supabase
       .from(this.tableName)
       .insert({
@@ -26,33 +20,40 @@ class BookmarkRepository {
         url: data.url,
         title: data.title ?? null,
       })
-      .select("*")
+      .select('*')
       .single();
     if (error) {
       // Unique index on (user_id, url)
       if (
-        error.code === "23505" ||
-        error.message.includes("duplicate key") ||
-        error.message.includes("already exists")
+        error.code === '23505' ||
+        error.message.includes('duplicate key') ||
+        error.message.includes('already exists')
       ) {
-        throw new Error("BOOKMARK_ALREADY_EXISTS");
+        throw new Error('BOOKMARK_ALREADY_EXISTS');
       }
       throw new Error(`Database error: ${error.message}`);
     }
     return rows as Bookmark;
   }
 
+  // Get Total Count
+  async getTotalCountBookmarks(userId: string | number) {
+    const { count } = await this.supabase
+      .from(this.tableName)
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    return count ?? 0;
+  }
+
   // Get all bookmarks for a user, with pagination
-  async readBookmarks(
-    userId: number,
-    limit: number = 50,
-    offset: number = 0
-  ): Promise<Bookmark[]> {
+  async readBookmarks(userId: number, limit: number = 50, offset: number = 0): Promise<Bookmark[]> {
+    // const count = await this.getTotalCountBookmarks(userId);
+    // console.log(count, "count")
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw new Error(`Database error: ${error.message}`);
@@ -60,15 +61,12 @@ class BookmarkRepository {
   }
 
   // Get a bookmark by its id and user_id
-  async readBookmark(
-    bookmarkId: number | string,
-    userId: number
-  ): Promise<Bookmark | null> {
+  async readBookmark(bookmarkId: number | string, userId: number): Promise<Bookmark | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("id", bookmarkId)
-      .eq("user_id", userId)
+      .select('*')
+      .eq('id', bookmarkId)
+      .eq('user_id', userId)
       .single();
     if (error || !data) return null;
     return data as Bookmark;
@@ -78,7 +76,7 @@ class BookmarkRepository {
   async updateBookmark(
     bookmarkId: number | string,
     userId: number,
-    updateData: UpdateBookmarkDTO
+    updateData: UpdateBookmarkInput
   ): Promise<Bookmark | null> {
     const updateObj: Record<string, any> = {};
     if (updateData.url !== undefined) updateObj.url = updateData.url;
@@ -88,19 +86,19 @@ class BookmarkRepository {
     const { data, error } = await this.supabase
       .from(this.tableName)
       .update(updateObj)
-      .eq("id", bookmarkId)
-      .eq("user_id", userId)
-      .select("*")
+      .eq('id', bookmarkId)
+      .eq('user_id', userId)
+      .select('*')
       .single();
 
     if (error) {
       // Unique index on (user_id, url)
       if (
-        error.code === "23505" ||
-        error.message.includes("duplicate key") ||
-        error.message.includes("already exists")
+        error.code === '23505' ||
+        error.message.includes('duplicate key') ||
+        error.message.includes('already exists')
       ) {
-        throw new Error("BOOKMARK_ALREADY_EXISTS");
+        throw new Error('BOOKMARK_ALREADY_EXISTS');
       }
       return null;
     }
@@ -109,16 +107,13 @@ class BookmarkRepository {
   }
 
   // Delete a bookmark for a user
-  async deleteBookmark(
-    bookmarkId: number | string,
-    userId: number
-  ): Promise<boolean> {
+  async deleteBookmark(bookmarkId: number | string, userId: number): Promise<boolean> {
     const { error, data } = await this.supabase
       .from(this.tableName)
       .delete()
-      .eq("id", bookmarkId)
-      .eq("user_id", userId)
-      .select("id")
+      .eq('id', bookmarkId)
+      .eq('user_id', userId)
+      .select('id')
       .maybeSingle();
 
     if (error) return false;

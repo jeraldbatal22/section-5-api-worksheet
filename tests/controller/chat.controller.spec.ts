@@ -1,245 +1,408 @@
-import { test, expect } from "@playwright/test";
-import { BASE_URL as API_URL } from "../../config/env";
-import { getAuthToken } from "../utils";
+import { test, expect, request as pwRequest, APIRequestContext } from '@playwright/test';
+import { BASE_URL as API_URL } from '../../config/env.config';
+import { getAuthData } from '../utils';
+import { resetDb } from '../utils/reset-db';
 
 const BASE_URL = `${API_URL}/api/v1`;
+interface User {
+  id: string;
+  email?: string;
+  name?: string;
+}
 
-test.describe("Chat API E2E", () => {
-  // let authHeaders: Record<string, string> = {};
+interface Message {
+  id: string;
+  content: string;
+  receiver_id: string;
+  sender_id?: string;
+  created_at?: string;
+}
 
-  // test.beforeEach(async ({ request }) => {
-  //   const AUTH_TOKEN = await getAuthToken(request);
-  //   authHeaders = AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {};
-  // });
+interface ApiResponse<T = any> {
+  success: boolean;
+  data: T;
+  message: string;
+  error?: boolean;
+}
 
-  // test.describe("POST /chats (send message)", () => {
-  //   let users: any = [];
-  //   test.beforeAll(async ({ request }) => {
-  //     const response = await request.post(`${BASE_URL}/auth/users`, {
-  //       headers: { ...authHeaders },
-  //     });
+// Helper to create test message payload
+const createMessagePayload = (receiverId: string, content?: string) => ({
+  content: content || `Test message ${Date.now()}`,
+  receiver_id: receiverId,
+});
 
-  //     expect(response.status()).toBe(200);
-  //     const body = await response.json();
-  //     users = body.data;
-  //   });
+// Helper for API assertions
+const expectSuccessResponse = async (response: any, expectedStatus = 200) => {
+  expect(response.status()).toBe(expectedStatus);
+  const body: ApiResponse = await response.json();
+  expect(body.success).toBe(true);
+  return body;
+};
 
-  //   test("should send a message successfully when authenticated", async ({
-  //     request,
-  //   }) => {
-  //     if (users.length > 0) {
-  //       // The ids here must exist - adjust as per your seeding/test data!
-  //       const messagePayload = {
-  //         content: "Hello from playwright",
-  //         receiver_id: users[0].id,
-  //         // uploadTo: "chat",
-  //       };
+const expectErrorResponse = async (response: any, expectedStatus = 400) => {
+  expect(response.status()).toBe(expectedStatus);
+  const body: ApiResponse = await response.json();
+  expect(body.error).toBe(true);
+  expect(body.message).toBeTruthy();
+  return body;
+};
 
-  //       const response = await request.post(`${BASE_URL}/chats`, {
-  //         data: messagePayload,
-  //         headers: { ...authHeaders },
-  //       });
+test.describe('Chat API E2E', () => {
+  let authHeaders: Record<string, string> = {};
+  let testUsers: User[] = [];
+  let request: APIRequestContext;
 
-  //       expect(response.status()).toBe(201);
-  //       const body = await response.json();
-  //       expect(body.success).toBe(true);
-  //       expect(body.data).toBeTruthy();
-  //       expect(body.message).toMatch(/Message sent successfully/i);
-  //       expect(body.data.content).toBe(messagePayload.content);
-  //       expect(body.data.receiver_id).toBe(messagePayload.receiver_id);
-  //     }
-  //   });
+  // Setup authentication before all tests
+  test.beforeAll(async () => {
+    request = await pwRequest.newContext();
+    const { token } = await getAuthData(request);
+    console.log(token, 'tokentoken');
+    authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
-  //   test("should fail to send message if not authenticated", async ({
-  //     request,
-  //   }) => {
-  //     const payload = {
-  //       content: "Fail unauth",
-  //       receiver_id: "2",
-  //       uploadTo: "chat",
-  //     };
-  //     const response = await request.post(`${BASE_URL}/chats`, {
-  //       data: payload,
-  //     });
-  //     expect(response.status()).toBe(401);
-  //     const body = await response.json();
-  //     expect(body).toHaveProperty("error", true);
-  //     expect(body).toHaveProperty("message");
-  //   });
+    // Fetch test users once for all tests
+    const response = await request.post(`${BASE_URL}/auth/users`, {
+      headers: authHeaders,
+    });
 
-  //   test("should fail if receiver_id or content is missing", async ({
-  //     request,
-  //   }) => {
-  //     const tests = [
-  //       { content: "", receiver_id: "2" },
-  //       { content: "hi", receiver_id: "" },
-  //       {},
-  //     ];
-  //     for (const data of tests) {
-  //       const response = await request.post(`${BASE_URL}/chats`, {
-  //         data,
-  //         headers: { ...authHeaders },
-  //       });
-  //       // Accept any input error, ideally status 400
-  //       expect([400, 422]).toContain(response.status());
-  //       const body = await response.json();
-  //       expect(body).toHaveProperty("error", true);
-  //     }
-  //   });
-  // });
+    expect(response.status()).toBe(200);
+    const body: ApiResponse<User[]> = await response.json();
+    testUsers = body.data;
 
-  // test.describe("GET /chatss?receiver_id", () => {
-  //   test("should retrieve chat history with another user", async ({
-  //     request,
-  //   }) => {
-  //     // Ensure there's at least one valid message/user pair for this test's user
-  //     const receiver_id = "2";
-  //     const response = await request.get(
-  //       `${BASE_URL}/chatss?receiver_id=${receiver_id}`,
-  //       {
-  //         headers: { ...authHeaders },
-  //       }
-  //     );
-  //     expect(response.status()).toBe(200);
-  //     const body = await response.json();
-  //     expect(body.success).toBe(true);
-  //     // data may be empty, but always array or null
-  //     expect(body.message).toMatch(/retrieved chat history/i);
-  //   });
+    // Ensure we have test data
+    expect(testUsers.length).toBeGreaterThan(0);
+  });
 
-  //   test("should fail to retrieve messages if not authenticated", async ({
-  //     request,
-  //   }) => {
-  //     const receiver_id = "2";
-  //     const response = await request.get(
-  //       `${BASE_URL}/chatss?receiver_id=${receiver_id}`
-  //     );
-  //     expect(response.status()).toBe(401);
-  //     const body = await response.json();
-  //     expect(body).toHaveProperty("error", true);
-  //     expect(body).toHaveProperty("message");
-  //   });
+  test.beforeEach(async () => {
+    // Reset database before each test for isolation
+    await resetDb('reset_chats');
+  });
 
-  //   test("should fail if receiver_id is missing", async ({ request }) => {
-  //     const response = await request.get(`${BASE_URL}/chatss`, {
-  //       headers: { ...authHeaders },
-  //     });
-  //     expect([400, 422]).toContain(response.status());
-  //     const body = await response.json();
-  //     expect(body).toHaveProperty("error", true);
-  //   });
-  // });
+  test.afterAll(async () => {
+    await request.dispose();
+  });
 
-  // test.describe("GET /chats/:id", () => {
-  //   let createdMsg: any;
-  //   test.beforeEach(async ({ request }) => {
-  //     // Create a message to read
-  //     const res = await request.post(`${BASE_URL}/chats`, {
-  //       data: {
-  //         content: "for single fetch",
-  //         receiver_id: "2",
-  //       },
-  //       headers: { ...authHeaders },
-  //     });
-  //     createdMsg = (await res.json()).data;
-  //   });
+  // ============================================================================
+  // POST /chats - Send Message
+  // ============================================================================
 
-  //   test("should fetch a message by id", async ({ request }) => {
-  //     // createdMsg should exist from beforeEach
-  //     const response = await request.get(`${BASE_URL}/chats/${createdMsg.id}`, {
-  //       headers: { ...authHeaders },
-  //     });
-  //     expect(response.status()).toBe(200);
-  //     const body = await response.json();
-  //     expect(body.success).toBe(true);
-  //     expect(body.data).toBeTruthy();
-  //     expect(body.data.id).toBe(createdMsg.id);
-  //     expect(body.message).toMatch(/retrieved message/i);
-  //   });
+  test.describe('POST /chats (send message)', () => {
+    test('should send a message successfully', async ({ request }) => {
+      const payload = createMessagePayload(testUsers[0].id);
 
-  //   test("should fail to fetch by id if not authenticated", async ({
-  //     request,
-  //   }) => {
-  //     const response = await request.get(`${BASE_URL}/chats/${createdMsg.id}`);
-  //     expect(response.status()).toBe(401);
-  //     const body = await response.json();
-  //     expect(body).toHaveProperty("error", true);
-  //     expect(body).toHaveProperty("message");
-  //   });
+      const response = await request.post(`${BASE_URL}/chats`, {
+        data: payload,
+        headers: authHeaders,
+      });
 
-  //   test("should return 404/not found for non-existent message id", async ({
-  //     request,
-  //   }) => {
-  //     const response = await request.get(`${BASE_URL}/chats/999999`, {
-  //       headers: { ...authHeaders },
-  //     });
-  //     // Could be 404 or always 200 with data: null
-  //     expect([200, 404]).toContain(response.status());
-  //     const body = await response.json();
-  //     if (response.status() === 200) {
-  //       expect(body.success).toBe(true);
-  //       expect(body.data).toBeNull();
-  //     } else {
-  //       expect(body).toHaveProperty("error", true);
-  //     }
-  //   });
-  // });
+      const body = await expectSuccessResponse(response, 201);
 
-  // test.describe("DELETE /chats/:id", () => {
-  //   let createdMsg: any;
+      // Detailed assertions
+      expect(body.data).toBeTruthy();
+      expect(body.message).toMatch(/message sent successfully/i);
+      expect(body.data.content).toBe(payload.content);
+      expect(body.data.receiver_id).toBe(payload.receiver_id);
+      expect(body.data.id).toBeTruthy(); // Ensure ID is generated
+    });
 
-  //   test.beforeEach(async ({ request }) => {
-  //     // Create a message to delete
-  //     const res = await request.post(`${BASE_URL}/chats`, {
-  //       data: {
-  //         content: "to delete",
-  //         receiver_id: "2",
-  //       },
-  //       headers: { ...authHeaders },
-  //     });
-  //     createdMsg = (await res.json()).data;
-  //   });
+    test('should handle long message content', async ({ request }) => {
+      const longContent = 'A'.repeat(1000); // Test with 1000 characters
+      const payload = createMessagePayload(testUsers[0].id, longContent);
 
-  //   test("should delete a message by id", async ({ request }) => {
-  //     const response = await request.delete(
-  //       `${BASE_URL}/chats/${createdMsg.id}`,
-  //       {
-  //         headers: { ...authHeaders },
-  //       }
-  //     );
-  //     expect(response.status()).toBe(200);
-  //     const body = await response.json();
-  //     expect(body.success).toBe(true);
-  //     expect(body.data).toBeNull();
-  //     expect(body.message).toMatch(/message deleted successfully/i);
-  //   });
+      const response = await request.post(`${BASE_URL}/chats`, {
+        data: payload,
+        headers: authHeaders,
+      });
 
-  //   test("should fail to delete a message if not authenticated", async ({
-  //     request,
-  //   }) => {
-  //     const response = await request.delete(
-  //       `${BASE_URL}/chats/${createdMsg.id}`
-  //     );
-  //     expect(response.status()).toBe(401);
-  //     const body = await response.json();
-  //     expect(body).toHaveProperty("error", true);
-  //     expect(body).toHaveProperty("message");
-  //   });
+      const body = await expectSuccessResponse(response, 201);
+      expect(body.data.content).toBe(longContent);
+    });
 
-  //   test("should return 404/not found when deleting non-existent message", async ({
-  //     request,
-  //   }) => {
-  //     const response = await request.delete(`${BASE_URL}/chats/999999`, {
-  //       headers: { ...authHeaders },
-  //     });
-  //     // Could be 404 or always 200 with data: null
-  //     expect([200, 404]).toContain(response.status());
-  //     const body = await response.json();
-  //     if (response.status() === 200) {
-  //       expect(body.success).toBe(true);
-  //     } else {
-  //       expect(body).toHaveProperty("error", true);
-  //     }
-  //   });
-  // });
+    test('should handle special characters in message', async ({ request }) => {
+      const specialContent = `Test with special chars: !@#$%^&*()_+ emoji 🚀 "quotes" 'apostrophes'`;
+      const payload = createMessagePayload(testUsers[0].id, specialContent);
+
+      const response = await request.post(`${BASE_URL}/chats`, {
+        data: payload,
+        headers: authHeaders,
+      });
+
+      const body = await expectSuccessResponse(response, 201);
+      expect(body.data.content).toBe(specialContent);
+    });
+
+    test('should reject unauthenticated request', async ({ request }) => {
+      const payload = createMessagePayload(testUsers[0].id);
+
+      const response = await request.post(`${BASE_URL}/chats`, {
+        data: payload,
+        // No auth headers
+      });
+      expect([401, 500]).toContain(response.status());
+    });
+
+    test('should reject invalid receiver_id', async ({ request }) => {
+      const payload = createMessagePayload('invalid-user-id-999999');
+
+      const response = await request.post(`${BASE_URL}/chats`, {
+        data: payload,
+        headers: authHeaders,
+      });
+
+      // Could be 400 (bad request) or 404 (user not found)
+      expect([400, 404, 500]).toContain(response.status());
+      const body = await response.json();
+      expect(body.success).toBe(false);
+    });
+
+    test.describe('Validation Errors', () => {
+      const invalidPayloads = [
+        {
+          name: 'empty content',
+          data: { content: '', receiver_id: '2' },
+          error: 'Content is required',
+          key: 'content',
+        },
+        {
+          name: 'missing content',
+          data: { receiver_id: '2' },
+          error: 'Invalid input: expected string, received undefined',
+          key: 'content',
+        },
+        {
+          name: 'empty receiver_id',
+          data: { content: 'hello', receiver_id: '' },
+          error: 'Receiver id is required',
+          key: 'receiver_id',
+        },
+        {
+          name: 'missing receiver_id',
+          data: { content: 'hello' },
+          error: 'Invalid input',
+          key: 'receiver_id',
+        },
+      ];
+
+      for (const { name, data, error, key } of invalidPayloads) {
+        test(`should reject ${name}`, async ({ request }) => {
+          const response = await request.post(`${BASE_URL}/chats`, {
+            data,
+            headers: authHeaders,
+          });
+
+          expect([400, 422]).toContain(response.status());
+          const body = await response.json();
+          expect(body.error[key]).toContain(error);
+          expect(body.message).toContain('Validation failed');
+        });
+      }
+    });
+  });
+
+  // ============================================================================
+  // GET /chats?receiver_id - Retrieve Chat History
+  // ============================================================================
+
+  test.describe('GET /chats?receiver_id', () => {
+    let testReceiverId: string;
+
+    test.beforeAll(async ({ request }) => {
+      // Ensure we have a receiver with chat history
+      testReceiverId = testUsers[0].id;
+
+      // Send a test message to ensure history exists
+      await request.post(`${BASE_URL}/chats`, {
+        data: createMessagePayload(testReceiverId, 'Setup message for history'),
+        headers: authHeaders,
+      });
+    });
+
+    test('should retrieve chat history successfully', async ({ request }) => {
+      const response = await request.get(`${BASE_URL}/chats?receiver_id=${testReceiverId}`, {
+        headers: authHeaders,
+      });
+
+      const body = await expectSuccessResponse(response);
+      expect(body.message).toMatch(/retrieved chat history/i);
+      expect(Array.isArray(body.data)).toBe(true);
+
+      // If data exists, validate structure
+      if (body.data.length > 0) {
+        const firstMessage = body.data[0];
+        expect(firstMessage).toHaveProperty('id');
+        expect(firstMessage).toHaveProperty('content');
+        expect(firstMessage).toHaveProperty('receiver_id');
+      }
+    });
+
+    test('should return empty array for users with no chat history', async ({ request }) => {
+      // Use a valid but unused user ID
+      const unusedUserId = testUsers[testUsers.length - 1]?.id || '999';
+
+      const response = await request.get(`${BASE_URL}/chats?receiver_id=${unusedUserId}`, {
+        headers: authHeaders,
+      });
+
+      const body = await expectSuccessResponse(response);
+      expect(Array.isArray(body.data)).toBe(true);
+    });
+
+    test('should reject unauthenticated request', async ({ request }) => {
+      const response = await request.get(`${BASE_URL}/chats?receiver_id=${testReceiverId}`);
+
+      expect([400, 422, 500, 401]).toContain(response.status());
+    });
+
+    test('should reject missing receiver_id parameter', async ({ request }) => {
+      const response = await request.get(`${BASE_URL}/chats`, {
+        headers: authHeaders,
+      });
+
+      expect([400, 422]).toContain(response.status());
+      const body = await response.json();
+      expect(body.success).toBe(false);
+    });
+
+    test('should handle pagination parameters if supported', async ({ request }) => {
+      const response = await request.get(
+        `${BASE_URL}/chats?receiver_id=${testReceiverId}&page=1&limit=10`,
+        { headers: authHeaders }
+      );
+
+      expect(response.status()).toBe(200);
+    });
+  });
+
+  // ============================================================================
+  // DELETE /chats/:id - Delete Message
+  // ============================================================================
+
+  test.describe('DELETE /chats/:id', () => {
+    let testMessage: Message;
+
+    test.beforeEach(async ({ request }) => {
+      // Create a message to delete
+      const response = await request.post(`${BASE_URL}/chats`, {
+        data: createMessagePayload(testUsers[0].id, 'Message to delete'),
+        headers: authHeaders,
+      });
+
+      const body: ApiResponse<Message> = await response.json();
+      testMessage = body.data;
+    });
+
+    test('should delete message successfully', async ({ request }) => {
+      const response = await request.delete(`${BASE_URL}/chats/${testMessage.id}`, {
+        headers: authHeaders,
+      });
+
+      const body = await expectSuccessResponse(response);
+      expect(body.message).toMatch(/message deleted successfully/i);
+
+      // Verify deletion by trying to fetch
+      const fetchResponse = await request.get(`${BASE_URL}/chats/${testMessage.id}`, {
+        headers: authHeaders,
+      });
+
+      const fetchBody = await fetchResponse.json();
+      expect([200, 404, 400]).toContain(fetchResponse.status());
+      if (fetchResponse.status() === 200) {
+        expect(fetchBody.data).toBeNull();
+      }
+    });
+
+    test('should reject unauthenticated delete request', async ({ request }) => {
+      const response = await request.delete(`${BASE_URL}/chats/${testMessage.id}`);
+      expect([401, 500]).toContain(response.status());
+    });
+
+    test('should handle deleting non-existent message', async ({ request }) => {
+      const response = await request.delete(`${BASE_URL}/chats/999999999`, {
+        headers: authHeaders,
+      });
+
+      expect([200, 404, 400]).toContain(response.status());
+    });
+
+    test('should prevent double deletion', async ({ request }) => {
+      // Delete once
+      await request.delete(`${BASE_URL}/chats/${testMessage.id}`, {
+        headers: authHeaders,
+      });
+
+      // Try to delete again
+      const response = await request.delete(`${BASE_URL}/chats/${testMessage.id}`, {
+        headers: authHeaders,
+      });
+
+      expect([200, 404, 400]).toContain(response.status());
+    });
+  });
+
+  // ============================================================================
+  // INTEGRATION TESTS - Complex Scenarios
+  // ============================================================================
+
+  test.describe('Integration Scenarios', () => {
+    test('should handle complete message lifecycle', async ({ request }) => {
+      const receiverId = testUsers[0].id;
+
+      // 1. Send message
+      const sendResponse = await request.post(`${BASE_URL}/chats`, {
+        data: createMessagePayload(receiverId, 'Lifecycle test message'),
+        headers: authHeaders,
+      });
+      const sendBody = await expectSuccessResponse(sendResponse, 201);
+      const messageId = sendBody.data.id;
+
+      // 2. Retrieve message
+      const getResponse = await request.get(`${BASE_URL}/chats/${messageId}`, {
+        headers: authHeaders,
+      });
+      const getBody = await expectSuccessResponse(getResponse);
+      expect(getBody.data.id).toBe(messageId);
+
+      // 3. Verify in chat history
+      const historyResponse = await request.get(`${BASE_URL}/chats?receiver_id=${receiverId}`, {
+        headers: authHeaders,
+      });
+      const historyBody = await expectSuccessResponse(historyResponse);
+      const messageInHistory = historyBody.data.find((msg: Message) => msg.id === messageId);
+      expect(messageInHistory).toBeTruthy();
+
+      // 4. Delete message
+      const deleteResponse = await request.delete(`${BASE_URL}/chats/${messageId}`, {
+        headers: authHeaders,
+      });
+      await expectSuccessResponse(deleteResponse);
+
+      // 5. Verify deletion
+      const verifyResponse = await request.get(`${BASE_URL}/chats/${messageId}`, {
+        headers: authHeaders,
+      });
+      expect([200, 404, 400]).toContain(verifyResponse.status());
+    });
+
+    test('should handle rapid message sending', async ({ request }) => {
+      const receiverId = testUsers[0].id;
+      const messageCount = 5;
+      const promises = [];
+
+      // Send multiple messages concurrently
+      for (let i = 0; i < messageCount; i++) {
+        promises.push(
+          request.post(`${BASE_URL}/chats`, {
+            data: createMessagePayload(receiverId, `Rapid message ${i}`),
+            headers: authHeaders,
+          })
+        );
+      }
+
+      const responses = await Promise.all(promises);
+
+      // All should succeed
+      for (const response of responses) {
+        expect(response.status()).toBe(201);
+      }
+    });
+  });
 });

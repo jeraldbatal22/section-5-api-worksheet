@@ -1,5 +1,5 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { JWT_REFRESH_EXPIRES_IN } from "../config/env";
+import { JWT_REFRESH_EXPIRES_IN } from "../config/env.config";
 import type { StringValue } from "ms";
 
 const JWT_SECRET =

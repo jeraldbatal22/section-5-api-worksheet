@@ -1,23 +1,18 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  UrlShortener,
-  CreateShortenUrlDTO,
-} from "../model/url-shortener.model.ts";
-import supabase from "../utils/supabase/server.ts";
+import { SupabaseClient } from '@supabase/supabase-js';
+import type { UrlShortener } from '../model/url-shortener.model.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
+import type { CreateShortenUrlInput } from '../schemas/url-shortener.schema.ts';
 
 export class UrlShortenerRepository {
   private supabase: SupabaseClient;
-  private tableName = "url_shorteners";
+  private tableName = 'url_shorteners';
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
   // Create a shortened URL (shortenUrl)
-  async shortenUrl(
-    userId: number | string,
-    data: CreateShortenUrlDTO
-  ): Promise<UrlShortener> {
+  async shortenUrl(userId: number | string, data: CreateShortenUrlInput): Promise<UrlShortener> {
     const { url: original_url, shorten_url: short_url } = data;
     const { data: result, error } = await this.supabase
       .from(this.tableName)
@@ -28,11 +23,11 @@ export class UrlShortenerRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .select("*")
+      .select('*')
       .single();
 
     if (error || !result) {
-      throw new Error(`Database error: ${error?.message ?? "Unknown error"}`);
+      throw new Error(`Database error: ${error?.message ?? 'Unknown error'}`);
     }
     return result as UrlShortener;
   }
@@ -45,9 +40,9 @@ export class UrlShortenerRepository {
   ): Promise<UrlShortener[]> {
     let query = this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     const { data, error } = await query;
@@ -59,8 +54,8 @@ export class UrlShortenerRepository {
   async findByShortCode(shorten_url: string): Promise<UrlShortener | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("short_url", shorten_url)
+      .select('*')
+      .eq('short_url', shorten_url)
       .single();
 
     if (error || !data) return null;

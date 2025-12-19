@@ -1,24 +1,20 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  CurrencyConverter,
-  CreateCurrencyConverterDTO,
-  CurrencyCode,
-} from "../model/currency-converter.model.ts";
-import supabase from "../utils/supabase/server.ts";
+import { SupabaseClient } from '@supabase/supabase-js';
+import type { CurrencyConverter, CurrencyCode } from '../model/currency-converter.model.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
+import HttpStatus from 'http-status';
+import type { CurrencyInput } from '../schemas/currency.schema.ts';
 
 class CurrencyConverterRepository {
   private supabase: SupabaseClient;
-  private tableName = "currency_converters";
+  private tableName = 'currency_converters';
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
   // Save a new currency conversion record
-  async saveConversion(
-    userId: number,
-    data: CreateCurrencyConverterDTO
-  ): Promise<CurrencyConverter> {
+  async saveConversion(userId: number, data: CurrencyInput): Promise<CurrencyConverter> {
     const { from_value, from_currency, to_currency, converted_value } = data;
     const { data: result, error } = await this.supabase
       .from(this.tableName)
@@ -31,10 +27,13 @@ class CurrencyConverterRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .select("*")
+      .select('*')
       .single();
     if (error || !result) {
-      throw new Error(`Database error: ${error?.message ?? "Unknown error"}`);
+      throw new AppError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `Database error: ${error?.message ?? 'Unknown error'}`
+      );
     }
     return result as CurrencyConverter;
   }
@@ -49,15 +48,18 @@ class CurrencyConverterRepository {
   ): Promise<CurrencyConverter | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("user_id", userId)
-      .eq("from_value", fromValue)
-      .eq("from_currency", currencyA)
-      .eq("to_currency", currencyB)
+      .select('*')
+      .eq('user_id', userId)
+      .eq('from_value', fromValue)
+      .eq('from_currency', currencyA)
+      .eq('to_currency', currencyB)
       .limit(1)
       .maybeSingle();
 
-    if (error || !data) return null;
+    if (error) {
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
+    }
+    if (!data) return null;
     return data as CurrencyConverter;
   }
 
@@ -69,13 +71,15 @@ class CurrencyConverterRepository {
   ): Promise<CurrencyConverter[]> {
     let query = this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     const { data, error } = await query;
-    if (error) throw new Error(`Database error: ${error.message}`);
+    if (error) {
+      throw new AppError(HttpStatus.INTERNAL_SERVER_ERROR, `Database error: ${error.message}`);
+    }
     return (data ?? []) as CurrencyConverter[];
   }
 }

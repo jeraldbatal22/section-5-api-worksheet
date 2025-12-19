@@ -1,37 +1,63 @@
-import {  SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { ChatModel, type IChat } from '../model/chat.model.ts';
-import supabase from '../utils/supabase/server.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
+import HttpStatus from 'http-status';
 
 export class ChatRepository {
   private supabase: SupabaseClient;
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
   async create(chatData: IChat): Promise<ChatModel> {
     const { data, error } = await this.supabase
       .from('chats')
       .insert(chatData)
-      .select(`
+      .select(
+        `
         *
-      `)
+      `
+      )
       .single();
 
     if (error) throw new Error(`Database error: ${error.message}`);
     return new ChatModel(data);
   }
 
-  async findBetweenUsers(userId1: string, userId2: string): Promise<ChatModel[]> {
+  // Get Total Count
+  async getTotalCountChats(senderId: string | number, receiverId: string | number) {
+    const { count, error } = await this.supabase
+      .from('chats')
+      .select('id', { count: 'exact', head: true })
+      .or(
+        `and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`
+      )
+      .eq('sender_id', senderId);
+    if (error) throw new AppError(HttpStatus.BAD_REQUEST, `Database error: ${error.message}`);
+
+    return count ?? 0;
+  }
+
+  async findBetweenUsers(
+    senderId: string,
+    receiverId: string,
+    options: {
+      limit: number;
+      offset: number;
+    }
+  ): Promise<ChatModel[]> {
     const { data, error } = await this.supabase
       .from('chats')
-      .select(`
-        *
-      `)
-      .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
-      .order('created_at', { ascending: true });
+      .select(`*`)
+      .or(
+        `and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`
+      )
+      .order('created_at', { ascending: true })
+      .range(options.offset, options.offset + options.limit - 1);
 
-    if (error) throw new Error(`Database error: ${error.message}`);
+    if (error) throw new AppError(HttpStatus.BAD_REQUEST, `Database error: ${error.message}`);
     return data.map(c => new ChatModel(c as any));
   }
 
@@ -64,8 +90,7 @@ export class ChatRepository {
 
     if (error) {
       // If no row was found to delete, return false
-      if (error.code === 'PGRST116' || error.code === 'PGRST204') return false;
-      throw new Error(`Database error: ${error.message}`);
+      throw new AppError(HttpStatus.BAD_REQUEST, `Database error: ${error.message}`);
     }
     // If data is null, message not found or not owned by user
     return !!data;

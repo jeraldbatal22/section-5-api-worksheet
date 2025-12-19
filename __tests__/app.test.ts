@@ -6,7 +6,7 @@ import {
 } from "../app.ts";
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { JWT_SECRET } from "../config/env.ts";
+import { JWT_SECRET } from "../config/env.config.ts";
 
 const buildRes = () => {
   const res: Partial<Response> = {

@@ -1,13 +1,16 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import { UserModel, type IUser } from "../model/user.model.ts";
-import supabase from "../utils/supabase/server.ts";
+import { SupabaseClient } from '@supabase/supabase-js';
+import { UserModel, type IUser } from '../model/user.model.ts';
+import { AppError } from '../middleware/error-handler.middleware.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
+import HttpStatus from 'http-status';
+import { logger } from '../utils/logger.utils.ts';
 
 export class UserRepository {
   private supabase: SupabaseClient;
-  private tableName = "users";
+  private tableName = 'users';
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
   // Sign up a user with Supabase Auth
@@ -23,9 +26,10 @@ export class UserRepository {
         data: additionalData,
       },
     });
-
-    if (error) throw new Error(`Supabase signup error: ${error.message}`);
-    console.log(data);
+    if (error) {
+      logger.error('Supabase signup error:', error.message);
+      throw new AppError(HttpStatus.BAD_REQUEST, `Supabase signup error: ${error.message}`);
+    }
     this.create({ username: data?.user?.email, id: data.user?.id });
 
     return data;
@@ -37,7 +41,11 @@ export class UserRepository {
       email,
       password,
     });
-    if (error) throw new Error(`Supabase signin error: ${error.message}`);
+    if (error) {
+      logger.error('Failed to create user:', error.message);
+      throw new AppError(HttpStatus.BAD_REQUEST, `Database error: ${error.message}`);
+    }
+
     return data;
   }
 
@@ -51,11 +59,14 @@ export class UserRepository {
         email: userData.username,
         // password: hashedPassword,
         avatar_url: userData.avatar_url ?? null,
-        role: userData.role ?? "user",
+        role: userData.role ?? 'user',
       })
-      .select("*")
+      .select('*')
       .single();
-    if (error) throw new Error(`Database error: ${error.message}`);
+    if (error) {
+      logger.error('Database error:', error);
+      throw new AppError(500, `Database error: ${error.message}`);
+    }
     return new UserModel(data as IUser);
   }
 
@@ -63,22 +74,25 @@ export class UserRepository {
   async findById(id: string | number): Promise<UserModel | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("id", id)
+      .select('*')
+      .eq('id', id)
       .single();
-    if (error || !data) return null;
+    if (error) {
+      logger.error('Database errors:', error.message);
+      throw new AppError(500, `Database error: ${error.message}`);
+    }
     return new UserModel(data as IUser);
   }
 
   // Retrieve all users from the table
   async findAllUsers(): Promise<UserModel[]> {
-    const { data, error } = await this.supabase
-      .from(this.tableName)
-      .select("*");
+    const { data, error } = await this.supabase.from(this.tableName).select('*');
 
-    if (error) throw new Error(`Database error: ${error.message}`);
+    if (error) {
+      console.error('Database error:', error);
+      throw new AppError(500, `Database error: ${error.message}`);
+    }
     if (!data) return [];
-
     return data.map((user: IUser) => new UserModel(user));
   }
 }

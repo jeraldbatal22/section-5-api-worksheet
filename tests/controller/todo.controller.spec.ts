@@ -1,171 +1,291 @@
-import { test, expect, request as pwRequest } from "@playwright/test";
-import { getAuthToken } from "../utils";
-import { BASE_URL as API_URL } from "../../config/env";
-import { resetDb } from "../utils/reset-db";
+import { test, expect, request as pwRequest, APIRequestContext } from '@playwright/test';
+import { getAuthData } from '../utils';
+import { BASE_URL as API_URL } from '../../config/env.config';
+import { resetDb } from '../utils/reset-db';
+import { getSupabaseDatabase } from '../../config/supabase.config';
 
 const BASE_URL = `${API_URL}/api/v1`;
+const ROLES = ['basic', 'pro', 'admin'] as const;
 
-test.describe("Todo API E2E", () => {
-  test.beforeAll(async () => {
-    await resetDb("reset_todos");
-  });
-  // test.beforeEach(async ({}) => {
-  //   // Assuming the app provides a way to reset todos, e.g. a special test endpoint
-  //   await pwRequest.newContext().then(async (context) => {
-  //     await context.post(`${BASE_URL}/todos/reset`);
-  //     await context.close();
-  //   });
-  // });
+type AuthData = {
+  token: string;
+  userId: string;
+};
 
-  test("gets all todos (unauthenticated)", async ({ request }) => {
-    const response = await request.get(`${BASE_URL}/todos`);
-    expect(response.status()).toBe(401);
-    const body = await response.json();
-    expect(body).toHaveProperty("error");
-    expect(body).toHaveProperty("message");
-  });
+test.describe('Todo API E2E Tests', () => {
+  test.describe('Unauthenticated requests', () => {
+    test('should return 401 when getting todos without auth', async ({ request }) => {
+      const response = await request.get(`${BASE_URL}/todos`);
 
-  test("gets all todos (authenticated)", async ({ request }) => {
-    const token = await getAuthToken(request);
-    const response = await request.get(`${BASE_URL}/todos`, {
-      headers: {
-        authorization: `Bearer ${token}`,
-      },
+      expect(response.status()).toBe(401);
+      const body = await response.json();
+      expect(body).toHaveProperty('success', false);
+      expect(body).toHaveProperty('message', 'No Token Provided');
     });
-    expect(response.status()).toBe(200);
-    const body = await response.json();
-    expect(body).toMatchObject({
-      success: true,
-      message: expect.stringMatching(/Sucessfully Get All Todos/i),
-      data: expect.any(Array),
+
+    test('should return 401 when creating todo without auth', async ({ request }) => {
+      const response = await request.post(`${BASE_URL}/todos`, {
+        data: { title: 'Test', description: 'Test', completed: false },
+      });
+
+      expect(response.status()).toBe(401);
     });
   });
 
-  test("gets single todo and fails on missing id (authenticated)", async ({
-    request,
-  }) => {
-    const token = await getAuthToken(request);
-    // Add a new todo first so you know its id
-    const addRes = await request.post(`${BASE_URL}/todos`, {
-      data: { title: "Get One", description: "GetOne", completed: false },
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(addRes.status()).toBe(201);
-    const added = await addRes.json();
-    const id = added.data?.id ?? "1";
+  // Test each role separately with proper isolation
+  for (const role of ROLES) {
+    test.describe(`Role: ${role}`, () => {
+      let authData: AuthData | any;
+      let request: APIRequestContext;
 
-    const res = await request.get(`${BASE_URL}/todos/${id}`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body).toHaveProperty("data");
-    expect(body.data).toHaveProperty("id", id);
+      test.beforeAll(async () => {
+        request = await pwRequest.newContext();
+        authData = await getAuthData(request);
+      });
 
-    // Now request a non-existent id
-    const missingRes = await request.get(`${BASE_URL}/todos/99999`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(missingRes.status()).not.toBe(200);
-    const missingBody = await missingRes.json();
-    expect(missingBody).toHaveProperty("error");
-  });
+      test.beforeEach(async () => {
+        // Reset database before each test for isolation
+        // await resetDb('reset_todos');
+      });
 
-  // test("adds todos and increases array length (authenticated)", async ({
-  //   request,
-  // }) => {
-  //   const token = await getAuthToken(request);
-  //   // Get initial todos
-  //   const initialRes = await request.get(`${BASE_URL}/todos`, {
-  //     headers: { authorization: `Bearer ${token}` },
-  //   });
-  //   const initialBody = await initialRes.json();
-  //   const initialLength = (initialBody.data || []).length;
+      test.afterAll(async () => {
+        await request.dispose();
+      });
 
-  //   const res = await request.post(`${BASE_URL}/todos`, {
-  //     data: { title: "New 1", description: "Desc1", completed: false },
-  //     headers: { authorization: `Bearer ${token}` },
-  //   });
-  //   expect(res.status()).toBe(201);
-  //   const data = await res.json();
-  //   expect(data).toMatchObject({
-  //     success: true,
-  //     message: "Successfully Created Todo",
-  //     data: data.data
-  //   });
+      // Helper function to create auth headers
+      const getAuthHeaders = () => ({
+        authorization: `Bearer ${authData.token}`,
+      });
 
-  //   const finalRes = await request.get(`${BASE_URL}/todos`, {
-  //     headers: { authorization: `Bearer ${token}` },
-  //   });
-  //   const finalBody = await finalRes.json();
-  //   expect((finalBody.data || []).length).toBe(initialLength + 1);
-  // });
+      test('should get all todos', async () => {
+        const response = await request.get(`${BASE_URL}/todos`, {
+          headers: getAuthHeaders(),
+        });
 
-  test("updates todo and fails when id not found (authenticated)", async ({
-    request,
-  }) => {
-    const token = await getAuthToken(request);
-    // Create a new todo to update
-    const addRes = await request.post(`${BASE_URL}/todos`, {
-      data: { title: "Edit Me", description: "desc", completed: false },
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(addRes.status()).toBe(201);
-    const added = await addRes.json();
-    const todoId = added.data?.id || "1";
+        expect(response.status()).toBe(200);
+        const body = await response.json();
+        expect(body).toMatchObject({
+          success: true,
+          message: expect.stringMatching(/Sucessfully Get Todos/i),
+          data: expect.any(Array),
+        });
+      });
 
-    const updateRes = await request.put(`${BASE_URL}/todos/${todoId}`, {
-      data: { title: "Updated", description: "Updated", completed: true },
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(updateRes.status()).toBe(201);
-    const updateBody = await updateRes.json();
-    expect(updateBody).toMatchObject({
-      success: true,
-      data: updateBody.data,
-      message: "Successfully Updated Todo"
-    });
+      test('should create a new todo', async () => {
+        const todoData = {
+          title: 'Test Todo',
+          description: 'Test Description',
+          completed: false,
+        };
 
-    // Update non-existent
-    const missingRes = await request.put(`${BASE_URL}/todos/99999`, {
-      data: { title: "Updated", description: "Updated", completed: true },
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(missingRes.status()).not.toBe(201);
-    const missingBody = await missingRes.json();
-    expect(missingBody).toHaveProperty("error");
-  });
+        const response = await request.post(`${BASE_URL}/todos`, {
+          data: todoData,
+          headers: getAuthHeaders(),
+        });
 
-  test("deletes todo and fails on missing id (authenticated)", async ({
-    request,
-  }) => {
-    const token = await getAuthToken(request);
-    // First add a todo to delete
-    const addRes = await request.post(`${BASE_URL}/todos`, {
-      data: { title: "Delete Me", description: "del", completed: false },
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(addRes.status()).toBe(201);
-    const added = await addRes.json();
-    const todoId = added.data?.id || "1";
+        expect(response.status()).toBe(201);
+        const body = await response.json();
+        expect(body).toMatchObject({
+          success: true,
+          data: expect.objectContaining(body.data),
+        });
+      });
 
-    const delRes = await request.delete(`${BASE_URL}/todos/${todoId}`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(delRes.status()).toBe(200);
-    const delBody = await delRes.json();
-    expect(delBody).toMatchObject({
-      success: true,
-      data: null,
-      message: "Successfully Deleted Todo",
-    });
+      test('should get a single todo by id', async () => {
+        // Create a todo first
+        const createRes = await request.post(`${BASE_URL}/todos`, {
+          data: { title: 'Get Me', description: 'Description', completed: false },
+          headers: getAuthHeaders(),
+        });
+        expect(createRes.status()).toBe(201);
 
-    // Try to delete a missing one
-    const missingRes = await request.delete(`${BASE_URL}/todos/99999`, {
-      headers: { authorization: `Bearer ${token}` },
+        const created = await createRes.json();
+        expect(created.data?.id).toBeDefined();
+        const todoId = created.data.id;
+
+        // Get the todo
+        const response = await request.get(`${BASE_URL}/todos/${todoId}`, {
+          headers: getAuthHeaders(),
+        });
+
+        expect(response.status()).toBe(200);
+        const body = await response.json();
+        expect(body).toMatchObject({
+          success: true,
+          data: expect.objectContaining({
+            id: todoId,
+            title: 'Get Me',
+          }),
+        });
+      });
+
+      test('should return 500 when getting non-existent todo', async () => {
+        const response = await request.get(`${BASE_URL}/todos/non-existent-id-99999`, {
+          headers: getAuthHeaders(),
+        });
+
+        expect(response.status()).toBe(500);
+        const body = await response.json();
+        expect(body).toHaveProperty('success', false);
+      });
+
+      test('should update an existing todo if user is pro role', async ({ request }) => {
+        const authData = await getAuthData(request, 'pro@gmail.com', 'Password!@#$1');
+        const useReponse = await request.get(`${BASE_URL}/auth/users/${authData.user?.id}`, {
+          headers: getAuthHeaders(),
+        });
+
+        expect(useReponse.status()).toBe(200);
+        const userBody = await useReponse.json();
+        if (userBody.data?.role === role) {
+          // Create a todo
+          const createRes = await request.post(`${BASE_URL}/todos`, {
+            data: { title: 'Original', description: 'Original Desc', completed: false },
+            headers: {
+              authorization: `Bearer ${authData?.token}`,
+            },
+          });
+          expect(createRes.status()).toBe(201);
+
+          const created = await createRes.json();
+          const todoId = created.data.id;
+
+          // // Update the todo
+          const updateData = {
+            title: 'Updated Title',
+            description: 'Updated Description',
+            completed: true,
+          };
+
+          const response = await request.put(`${BASE_URL}/todos/${todoId}`, {
+            data: updateData,
+            headers: {
+              authorization: `Bearer ${authData.token}`,
+            },
+          });
+
+          expect(response.status()).toBe(200);
+          const body = await response.json();
+          expect(body).toMatchObject({
+            success: true,
+            message: expect.stringMatching(/Successfully Updated Todo/i),
+            data: expect.objectContaining(body.data),
+          });
+        }
+      });
+
+      test('should return 401 when updating non-existent todo for pro user role', async () => {
+        const authData = await getAuthData(request, 'pro@gmail.com', 'Password!@#$1');
+        const useReponse = await request.get(`${BASE_URL}/auth/users/${authData.user?.id}`, {
+          headers: {
+            authorization: `Bearer ${authData.token}`,
+          },
+        });
+
+        expect(useReponse.status()).toBe(200);
+
+        const response = await request.put(`${BASE_URL}/todos/non-existent-id-99999`, {
+          data: { title: 'Updated', description: 'Updated', completed: true },
+          headers: {
+            authorization: `Bearer ${authData.token}`,
+          },
+        });
+
+        expect(response.status()).toBe(500);
+        const body = await response.json();
+        expect(body).toHaveProperty('success', false);
+      });
+
+      test('should delete an existing todo for pro user role', async () => {
+        const authData = await getAuthData(request, 'pro@gmail.com', 'Password!@#$1');
+        const useReponse = await request.get(`${BASE_URL}/auth/users/${authData.user?.id}`, {
+          headers: {
+            authorization: `Bearer ${authData.token}`,
+          },
+        });
+
+        expect(useReponse.status()).toBe(200);
+
+        // Create a todo
+        const createRes = await request.post(`${BASE_URL}/todos`, {
+          data: { title: 'Delete Me', description: 'To be deleted', completed: false },
+          headers: {
+            authorization: `Bearer ${authData.token}`,
+          },
+        });
+        expect(createRes.status()).toBe(201);
+
+        const created = await createRes.json();
+        const todoId = created.data.id;
+
+        // Delete the todo
+        const response = await request.delete(`${BASE_URL}/todos/${todoId}`, {
+          headers: {
+            authorization: `Bearer ${authData.token}`,
+          },
+        });
+
+        expect(response.status()).toBe(200);
+        const body = await response.json();
+        expect(body).toMatchObject({
+          success: true,
+          message: expect.stringMatching(/successfully deleted todo/i),
+        });
+
+        // Verify it's deleted
+        const getRes = await request.get(`${BASE_URL}/todos/${todoId}`, {
+          headers: getAuthHeaders(),
+        });
+        expect(getRes.status()).toBe(500);
+      });
+
+      test('should return 404 when deleting non-existent todo', async () => {
+        const authData = await getAuthData(request, 'pro@gmail.com', 'Password!@#$1');
+        const useReponse = await request.get(`${BASE_URL}/auth/users/${authData.user?.id}`, {
+          headers: {
+            authorization: `Bearer ${authData.token}`,
+          },
+        });
+
+        expect(useReponse.status()).toBe(200);
+        const response = await request.delete(`${BASE_URL}/todos/non-existent-id-99999`, {
+          headers: {
+            authorization: `Bearer ${authData.token}`,
+          },
+        });
+
+        expect(response.status()).toBe(500);
+        const body = await response.json();
+        expect(body).toHaveProperty('success', false);
+      });
+
+      // Additional validation tests
+      test('should return 400 when creating todo with missing required fields both pro and basic', async () => {
+        const response = await request.post(`${BASE_URL}/todos`, {
+          data: { completed: false }, // Missing title
+          headers: getAuthHeaders(),
+        });
+
+        expect(response.status()).toBe(400);
+        const body = await response.json();
+        expect(body).toHaveProperty('success', false);
+        expect(body).toHaveProperty('message', 'Validation failed');
+      });
+
+      test('should return 400 when creating todo with invalid data types', async () => {
+        const response = await request.post(`${BASE_URL}/todos`, {
+          data: {
+            title: 123, // Should be string
+            description: 'Valid',
+            completed: 'not-a-boolean', // Should be boolean
+          },
+          headers: getAuthHeaders(),
+        });
+
+        expect(response.status()).toBe(400);
+        const body = await response.json();
+        expect(body).toHaveProperty('error');
+      });
     });
-    expect(missingRes.status()).not.toBe(201);
-    const missingBody = await missingRes.json();
-    expect(missingBody).toHaveProperty("error");
-  });
+  }
 });

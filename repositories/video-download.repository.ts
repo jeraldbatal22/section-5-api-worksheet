@@ -1,9 +1,9 @@
-import { SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseClient } from '@supabase/supabase-js';
 import type {
   CreateVideoDownloadDto,
   UpdateVideoDownloadDto,
-} from "../model/video-downloader.model.ts";
-import supabase from "../utils/supabase/server.ts";
+} from '../model/video-downloader.model.ts';
+import { getSupabaseDatabase } from '../config/supabase.config.ts';
 
 export interface VideoDownload {
   id: number;
@@ -18,24 +18,24 @@ export interface VideoDownload {
 
 class VideoDownloadRepository {
   private supabase: SupabaseClient;
-  private tableName = "video_downloads";
+  private tableName = 'video_downloads';
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = getSupabaseDatabase();
   }
 
   async create(dto: CreateVideoDownloadDto): Promise<VideoDownload> {
     const { data, error } = await this.supabase
       .from(this.tableName)
       .insert({
-        status: "pending",
+        status: 'pending',
         user_id: dto.user_id,
         url: dto.url,
       })
-      .select("*")
+      .select('*')
       .single();
     if (error || !data) {
-      throw new Error(`Database error: ${error?.message ?? "Unknown error"}`);
+      throw new Error(`Database error: ${error?.message ?? 'Unknown error'}`);
     }
     return data as VideoDownload;
   }
@@ -43,8 +43,8 @@ class VideoDownloadRepository {
   async findById(id: number): Promise<VideoDownload | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("id", id)
+      .select('*')
+      .eq('id', id)
       .single();
 
     if (error || !data) return null;
@@ -58,18 +58,15 @@ class VideoDownloadRepository {
   ): Promise<VideoDownload[]> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) throw new Error(`Database error: ${error.message}`);
     return (data ?? []) as VideoDownload[];
   }
 
-  async update(
-    id: number,
-    dto: UpdateVideoDownloadDto
-  ): Promise<VideoDownload | null> {
+  async update(id: number, dto: UpdateVideoDownloadDto): Promise<VideoDownload | null> {
     console.log(id, dto);
     if (dto.file_size === undefined && dto.error_message === undefined) {
       // Nothing to update, return as is
@@ -81,14 +78,13 @@ class VideoDownloadRepository {
 
     if (dto.status !== undefined) updateFields.status = dto.status;
     if (dto.file_size !== undefined) updateFields.file_size = dto.file_size;
-    if (dto.error_message !== undefined)
-      updateFields.error_message = dto.error_message;
+    if (dto.error_message !== undefined) updateFields.error_message = dto.error_message;
 
     const { data, error } = await this.supabase
       .from(this.tableName)
       .update(updateFields)
-      .eq("id", id)
-      .select("*")
+      .eq('id', id)
+      .select('*')
       .single();
 
     if (error || !data) return null;

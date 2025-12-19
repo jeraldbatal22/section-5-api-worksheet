@@ -1,5 +1,7 @@
 import type { Request } from "express";
 
+type T_Role = "pro" | "basic" | "admin";
+
 interface IAuthUser {
   iss: string;
   sub: string;
@@ -16,7 +18,7 @@ interface IAuthUser {
     email_verified: boolean;
     [key: string]: any;
   };
-  role: string;
+  role: T_Role;
   aal: string;
   amr: { method: string; timestamp: number }[];
   session_id: string;
@@ -86,5 +88,5 @@ export {
   type T_Message,
   type T_File,
   type IAuthUser,
-  type IAuthRequest
+  type IAuthRequest,
 };
